@@ -1,29 +1,23 @@
-const express = require('express')
-const app = express()
-const http = require('http')
-const { Server } = require('socket.io')
-const axios = require('axios')
-const cors = require('cors')
-require("dotenv").config()
+const express = require('express');
+const app = express();
+const http = require('http');
+const { Server } = require('socket.io');
+const axios = require('axios');
+const cors = require('cors');
+require("dotenv").config();
+const path = require('path');
 
-const server = http.createServer(app)
-const io = new Server(server)
+const server = http.createServer(app);
+const io = new Server(server);
 
-const ACTIONS = require('./src/Actions')
-const path = require('path')
+const ACTIONS = require('./src/Actions');
 
-app.use(express.json())
-app.use(cors())
+// 🔧 Middlewares
+app.use(express.json());
+app.use(cors());
 
-app.use(express.static('build'))
-app.use((req, res, next) => {
-    res.sendFile(path.join(__dirname, 'build', 'index.html'))
-})
-
+// ⚙️ Code Execution Route (Judge0 API)
 const JUDGE0_API_URL = "https://judge0-ce.p.rapidapi.com/submissions";
-
-
-const API_KEY = process.env.JUDGE0_API_KEY
 
 app.post('/run', async (req, res) => {
     const { language_id, source_code, stdin } = req.body;
@@ -46,7 +40,7 @@ app.post('/run', async (req, res) => {
             }
         );
 
-        console.log("Judge0 Response:", data); // <--- Check if this contains stdout
+        console.log("Judge0 Response:", data);
         res.json({
             stdout: data.stdout,
             stderr: data.stderr,
@@ -58,58 +52,78 @@ app.post('/run', async (req, res) => {
     }
 });
 
-
-
-const userSocketMap = {}
+// 💬 WebSocket (Socket.IO) Logic
+const userSocketMap = {}; // Map of connected users by socket ID
+const roomCodeMap = {}; // In-memory storage for room codes
 
 function getAllConnectedClients(roomId) {
-    return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(socketId => {
-        return {
-            socketId,
-            username: userSocketMap[socketId],
-        }
-    })
+    return Array.from(io.sockets.adapter.rooms.get(roomId) || []).map(socketId => ({
+        socketId,
+        username: userSocketMap[socketId],
+    }));
+}
+
+function getCurrentCodeForRoom(roomId) {
+    return roomCodeMap[roomId] || ''; // Return current code for the room or an empty string if none exists
+}
+
+function storeCurrentCodeForRoom(roomId, code) {
+    roomCodeMap[roomId] = code; // Store the code in memory
 }
 
 io.on('connection', (socket) => {
-    console.log('Socket connected', socket.id)
+    console.log('Socket connected', socket.id);
 
+    // Join room and sync existing code
     socket.on(ACTIONS.JOIN, ({ roomId, username }) => {
-        userSocketMap[socket.id] = username
-        socket.join(roomId)
-        const clients = getAllConnectedClients(roomId)
+        console.log(`User ${username} joining room: ${roomId}`);
+        userSocketMap[socket.id] = username;
+        socket.join(roomId);
 
+        // Get all connected clients in the room
+        const clients = getAllConnectedClients(roomId);
+
+        // Emit to all clients that a new user has joined
         clients.forEach(({ socketId }) => {
             io.to(socketId).emit(ACTIONS.JOINED, {
                 clients,
                 username,
                 socketId: socket.id
-            })
-        })
-    })
+            });
+        });
 
+        // Sync code on rejoin (send the current code to the rejoining user)
+        const currentCode = getCurrentCodeForRoom(roomId); // Retrieve the current code for the room
+        console.log(`Sending current code to new user in room ${roomId}: ${currentCode}`); // Debugging log
+        socket.emit(ACTIONS.CODE_CHANGE, { code: currentCode });
+    });
+
+    // Sync code change across clients
     socket.on(ACTIONS.CODE_CHANGE, ({ roomId, code }) => {
-        socket.in(roomId).emit(ACTIONS.CODE_CHANGE, { code })
-    })
+        console.log(`Code changed in room ${roomId}: ${code}`); // Log code change
+        socket.in(roomId).emit(ACTIONS.CODE_CHANGE, { code });
+        storeCurrentCodeForRoom(roomId, code); // Store the code in memory for future sync
+    });
 
     socket.on(ACTIONS.SYNC_CODE, ({ socketId, code }) => {
         if (code !== null) {
-            io.to(socketId).emit(ACTIONS.CODE_CHANGE, { code })
+            io.to(socketId).emit(ACTIONS.CODE_CHANGE, { code });
         }
-    })
+    });
 
+    // Handle disconnection
     socket.on('disconnecting', () => {
-        const rooms = [...socket.rooms]
+        const rooms = [...socket.rooms];
         rooms.forEach((roomId) => {
             socket.in(roomId).emit(ACTIONS.DISCONNECTED, {
                 socketId: socket.id,
                 username: userSocketMap[socket.id],
-            })
-        })
-        delete userSocketMap[socket.id]
-        socket.leave()
-    })
-})
+            });
+        });
+        delete userSocketMap[socket.id];
+        socket.leave();
+    });
+});
 
-const PORT = process.env.PORT || 5000
-server.listen(PORT, () => console.log(`Listening on port ${PORT}`))
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));

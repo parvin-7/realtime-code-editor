@@ -118,9 +118,12 @@ footer{
     margin-top: 10px;
 }
 
-.editorWrap{
+.editorWrap {
     background: #fff;
+    height: 100%;
+    overflow: auto;
 }
+
 
 .logo{
     border-bottom: 1px solid #424242;
@@ -136,27 +139,58 @@ footer{
 }
 
 .CodeMirror {
-    min-height: calc(100vh-20px);
+    min-height: calc(100vh - 20px);
     font-size: 20px;
     line-height: 1.6;
     padding-top: 20px;
-  }
-
-.outputWrap{
-   
-   
 }
 
 .runButton{
-    margin: 15px 10px 0px 20px;
+    margin: 0px 10px 0px 20px;
     border: 1px solid black;
 }
 
-.outputBlock{
-    height: 100px;
+#outputBlock {
+    width: 95%;
+    height: 150px;
+    margin: 20px;
+    padding: 10px;
+    font-size: 14px;
+    background-color: #f4f4f4;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    resize: vertical;
+}
+
+.outputWrap {
+    background: #fff;
+    padding: 20px;
+    margin: 20px;
+    border-radius: 8px;
 }
 
 .languages{
     border: 1px solid black;
     outline: none;
 }
+
+#labelOutput{
+    margin-left: 20px;
+}
+
+@media screen and (max-width: 768px) {
+    .mainWrap {
+        grid-template-columns: 1fr;
+    }
+
+    .aside {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .editorWrap {
+        height: auto;
+    }
+}
+
