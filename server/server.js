@@ -10,7 +10,7 @@ const path = require('path');
 const server = http.createServer(app);
 const io = new Server(server);
 
-const ACTIONS = require('./src/Actions');
+const ACTIONS = require('../src/Actions');
 
 // 🔧 Middlewares
 app.use(express.json());
